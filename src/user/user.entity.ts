@@ -27,7 +27,7 @@ class User {
   @Column({ nullable: true })
   avatar: string;
 
-  @Column({ default: true })
+  @Column({ default: false })
   isCreator: boolean;
 
   @Column({ default: 'admin' })

@@ -26,4 +26,14 @@ export class CreatePostDto {
   @IsOptional()
   @IsArray()
   categoryIds?: string[];
+  @ApiProperty({
+    description: 'Array of tag names for the post',
+    example: ['programming', 'nestjs', 'typescript'],
+    required: false,
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
 }

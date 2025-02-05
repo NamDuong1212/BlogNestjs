@@ -23,4 +23,11 @@ export class UpdatePostDto extends PartialType(CreatePostDto) {
     required: false,
   })
   categoryIds?: string[];
+  @ApiProperty({
+    description: 'Array of tag names for the post',
+    example: ['programming', 'nestjs', 'typescript'],
+    required: false,
+    type: [String],
+  })
+  tags?: string[];
 }
