@@ -21,12 +21,7 @@ import {
 import { PostService } from './post.service';
 import { JwtAuthGuard } from 'src/auth/guard/jwt-auth.guard';
 import { UpdatePostDto } from './dto/update-post.dto';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CreatePostDto } from './dto/create-post.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -47,7 +42,7 @@ export class PostController {
   @ApiResponse({
     status: 201,
     description: 'Post created successfully.',
-    type: CreatePostDto,
+    type: CreatePostDto
   })
   @Post('create')
   @UseGuards(JwtAuthGuard)
@@ -56,7 +51,6 @@ export class PostController {
     @Body('title') title: string,
     @Body('content') content: string,
     @Body('categoryId') categoryId: string,
-    @Body('tags') tags?: string[],
   ) {
     const user = req.user;
 
@@ -64,13 +58,7 @@ export class PostController {
       throw new UnauthorizedException('Access denied. Creator only.');
     }
     const userId = req.user.id;
-    return this.postService.createPost(
-      userId,
-      title,
-      content,
-      categoryId,
-      tags,
-    );
+    return this.postService.createPost(userId, title, content, categoryId);
   }
 
   @ApiTags('Post')
@@ -106,7 +94,7 @@ export class PostController {
     type: CreatePostDto,
   })
   @Get('/getAll')
-  async getAllPosts(@Query('page') page = 1, @Query('limit') limit = 20) {
+  async getAllPosts(@Query('page') page = 1, @Query('limit') limit = 4) {
     return this.postService.getAllPost(page, limit);
   }
 
@@ -125,11 +113,11 @@ export class PostController {
   async getPostsByCategory(
     @Param('id') id: string,
     @Query('page') page = 1,
-    @Query('limit') limit = 20,
+    @Query('limit') limit = 10,
   ) {
     return this.postService.getPostByCategory(id, page, limit);
   }
-
+  
   @ApiTags('Post')
   @ApiBearerAuth('token')
   @ApiOperation({
@@ -173,20 +161,13 @@ export class PostController {
       }),
       fileFilter: (req, file, callback) => {
         if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
-          return callback(
-            new BadRequestException('Only image files are allowed!'),
-            false,
-          );
+          return callback(new BadRequestException('Only image files are allowed!'), false);
         }
         callback(null, true);
       },
     }),
   )
-  async uploadImage(
-    @Param('id') id: string,
-    @UploadedFile() file,
-    @Request() req,
-  ) {
+  async uploadImage(@Param('id') id: string, @UploadedFile() file, @Request() req) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
@@ -194,11 +175,7 @@ export class PostController {
     const imageUrl = `/uploads/posts/${file.filename}`;
 
     const isCreator = req.user?.isCreator;
-    const updatedImg = await this.postService.updatePostImage(
-      id,
-      imageUrl,
-      isCreator,
-    );
+    const updatedImg = await this.postService.updatePostImage(id, imageUrl, isCreator);
     if (!updatedImg) {
       throw new InternalServerErrorException('Failed to upload image');
     }
@@ -262,31 +239,29 @@ export class PostController {
   @UseGuards(JwtAuthGuard)
   async downloadPost(@Param('postId') postId: string, @Res() res: Response) {
     const post = await this.postService.findOneById(postId);
-
+  
     if (!post) {
       throw new NotFoundException('Post not found');
     }
-
+  
     const doc = new PDFDocument();
     const sanitizedTitle = post.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-
+  
     const fontPath = './src/assets/fonts/times.TTF';
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="${sanitizedTitle}.pdf"`,
-    );
-
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizedTitle}.pdf"`);
+  
     doc.pipe(res);
-
+  
     doc.font(fontPath);
-
+  
     doc.fontSize(20).text(post.title, { align: 'center' });
     doc.moveDown();
     doc.fontSize(12).text(`Author: ${post.user.username}`, { align: 'left' });
     doc.moveDown();
     doc.fontSize(14).text(post.content, { align: 'justify', lineGap: 6 });
-
+  
     doc.end();
   }
+  
 }

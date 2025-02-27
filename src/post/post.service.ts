@@ -11,8 +11,6 @@ import { UpdatePostDto } from './dto/update-post.dto';
 import User from 'src/user/user.entity';
 import { Comment } from 'src/comment/comment.entity';
 import { Rating } from 'src/rating/rating.entity';
-import { Tag } from 'src/tag/tag.entity';
-import { TagService } from 'src/tag/tag.service';
 
 @Injectable()
 export class PostService {
@@ -26,9 +24,6 @@ export class PostService {
     private readonly commentRepository: Repository<Comment>,
     @InjectRepository(Rating)
     private readonly ratingRepository: Repository<Rating>,
-    @InjectRepository(Tag)
-    private readonly tagRepository: Repository<Tag>,
-    private readonly tagService: TagService,
   ) {}
 
   async createPost(
@@ -36,9 +31,7 @@ export class PostService {
     title: string,
     content: string,
     categoryId: string,
-    tags?: string[],
   ) {
-
     const category = await this.categoryRepository.findOne({
       where: { id: categoryId },
     });
@@ -53,17 +46,11 @@ export class PostService {
       throw new NotFoundException('User not found.');
     }
 
-    let postTags: Tag[] = [];
-    if (tags && tags.length > 0) {
-      postTags = await this.tagService.findOrCreateTags(tags);
-    }
-
     const newPost = this.postRepository.create({
       title,
       content,
       category,
       user,
-      tags: postTags,
       isPublished: true,
     });
 
@@ -73,24 +60,15 @@ export class PostService {
       ...savedPost,
       author: user.username,
       avatar: user.avatar,
-      userId,
+      userId
     };
   }
 
-  
   async updatePost(id: string, updatePostDto: UpdatePostDto): Promise<Post> {
-    const post = await this.postRepository.findOne({ 
-      where: { id },
-      relations: ['tags'] 
-    });
+    const post = await this.postRepository.findOne({ where: { id } });
 
     if (!post) {
       throw new NotFoundException('Post not found');
-    }
-
-    if (updatePostDto.tags) {
-      const tags = await this.tagService.findOrCreateTags(updatePostDto.tags);
-      post.tags = tags;
     }
 
     const updatePost = Object.assign(post, updatePostDto);

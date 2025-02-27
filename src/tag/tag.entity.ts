@@ -9,8 +9,6 @@ export class Tag {
   @Column({ unique: true })
   name: string;
 
-  @ManyToMany(() => Post, post => post.tags)
-  posts: Post[];
 
   @CreateDateColumn()
   createdAt: Date;

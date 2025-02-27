@@ -7,14 +7,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
-  ManyToMany,
-  JoinTable
 } from 'typeorm';
 import { Category } from '../category/category.entity';
 import User from '../user/user.entity';
 import { Like } from 'src/like/like.entity';
 import { Report } from 'src/report/report.entity';
-import { Tag } from 'src/tag/tag.entity';
 
 @Entity()
 export class Post {
@@ -57,21 +54,4 @@ export class Post {
 
   @UpdateDateColumn()
   updatedAt: Date;
-
-  @ManyToMany(() => Tag, tag => tag.posts, {
-    eager: true,
-    cascade: true
-  })
-  @JoinTable({
-    name: 'post_tags',
-    joinColumn: {
-      name: 'postId',
-      referencedColumnName: 'id'
-    },
-    inverseJoinColumn: {
-      name: 'tagId',
-      referencedColumnName: 'id'
-    }
-  })
-  tags: Tag[];
 }
