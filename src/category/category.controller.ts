@@ -30,7 +30,7 @@ export class CategoryController {
   })
   @Get('/getAll')
   async getAllCategory() {
-    const category = await this.categoryService.getAllCategory();
+    const category = await this.categoryService.getAllCategories();
     return { message: 'All categories', data: category };
   }
 

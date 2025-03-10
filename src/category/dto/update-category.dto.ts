@@ -16,4 +16,11 @@ export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {
     required: false,
   })
   description?: string;
+
+  @ApiProperty({
+    description: 'The ID of the parent category.',
+    example: '123',
+    required: false,
+  })
+  parentId?: string;
 }

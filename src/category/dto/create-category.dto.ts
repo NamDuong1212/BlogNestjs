@@ -18,4 +18,13 @@ export class CreateCategoryDto {
     required: false,
   })
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiProperty({
+    description: 'The ID of the parent category.',
+    example: '123',
+    required: false,
+  })
+  parentId?: string;
 }

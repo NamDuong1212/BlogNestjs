@@ -92,63 +92,242 @@ export class CmsService {
         return null;
       }
 
-    async createCategory(
+      async createCategory(
         createCategoryDto: CreateCategoryDto,
-    ): Promise<Category>{
-        const { name } = createCategoryDto;
-        const category = this.categoryRepository.create(createCategoryDto);
+    ): Promise<Category> {
+        const { name, parentId } = createCategoryDto;
         const existingCategory = await this.categoryRepository.findOne({ where: { name } });
+        
         if (existingCategory) {
             throw new UnauthorizedException('Category already exists');
         }
+        
+        let parentCategory = null;
+        let level = 1;
+        
+        if (parentId) {
+            parentCategory = await this.categoryRepository.findOne({ 
+                where: { id: parentId },
+                relations: ['parent']
+            });
+            
+            if (!parentCategory) {
+                throw new NotFoundException('Parent category not found');
+            }
+            
+            let currentParent = parentCategory;
+            let parentLevel = 1;
+            
+            while (currentParent.parent) {
+                parentLevel++;
+                currentParent = await this.categoryRepository.findOne({
+                    where: { id: currentParent.parent.id },
+                    relations: ['parent']
+                });
+            }
+            
+            level = parentLevel + 1;
+            
+            if (level > 4) {
+                throw new UnauthorizedException('Category hierarchy cannot exceed 4 levels');
+            }
+        } else {
+            level = 1;
+        }
+        
+        const category = this.categoryRepository.create({ 
+            ...createCategoryDto, 
+            parent: parentCategory,
+            level 
+        });
+        
         await this.categoryRepository.save(category);
         return category;
     }
-
+    
     async updateCategory(
         id: string,
         updateCategoryDto: UpdateCategoryDto,
     ): Promise<Category> {
-        const { name } = updateCategoryDto;
-
-        const category = await this.categoryRepository.findOne({ where: { id } });
-    
-        const existingCategory = await this.categoryRepository.findOne({ where: { name } });
-        if (existingCategory) {
-            throw new UnauthorizedException('Category already exists');
-        }
+        const { name, parentId } = updateCategoryDto;
+        const category = await this.categoryRepository.findOne({ 
+            where: { id },
+            relations: ['parent', 'children'] 
+        });
+        
         if (!category) {
-          throw new NotFoundException('Category not found');
+            throw new NotFoundException('Category not found');
         }
-        const updateCategory = Object.assign(category, updateCategoryDto);
-        return this.categoryRepository.save(updateCategory);
+        if (name && name !== category.name) {
+            const existingCategory = await this.categoryRepository.findOne({ where: { name } });
+            if (existingCategory) {
+                throw new UnauthorizedException('Category already exists');
+            }
+        }
+        
+        if (parentId && parentId === id) {
+            throw new UnauthorizedException('A category cannot be its own parent');
+        }
+        
+        if (parentId && category.children && category.children.length > 0) {
+            const isChildOfCategory = await this.isChildOfCategory(parentId, id);
+            if (isChildOfCategory) {
+                throw new UnauthorizedException('Cannot set a child category as parent');
+            }
+        }
+        
+        let parentCategory = null;
+        let level = 1;
+        
+        if (parentId) {
+            parentCategory = await this.categoryRepository.findOne({ 
+                where: { id: parentId },
+                relations: ['parent']
+            });
+            
+            if (!parentCategory) {
+                throw new NotFoundException('Parent category not found');
+            }
+            let currentParent = parentCategory;
+            let parentLevel = 1;
+            
+            while (currentParent.parent) {
+                parentLevel++;
+                currentParent = await this.categoryRepository.findOne({
+                    where: { id: currentParent.parent.id },
+                    relations: ['parent']
+                });
+            }
+            
+            level = parentLevel + 1;
+            
+            if (level > 4) {
+                throw new UnauthorizedException('Category hierarchy cannot exceed 4 levels');
+            }
+            
+            if (category.children && category.children.length > 0) {
+                const maxChildDepth = await this.getMaxChildDepth(category);
+                if (level + maxChildDepth - 1 > 4) {
+                    throw new UnauthorizedException('This change would cause some children to exceed the maximum depth of 4 levels');
+                }
+            }
+        } else {
+            level = 1;
+        }
+        
+        if (name) {
+            category.name = name;
+        }
+        
+        category.parent = parentCategory;
+        category.level = level;
+        if (category.children && category.children.length > 0) {
+            await this.updateChildrenLevels(category, level);
+        }
+        
+        return this.categoryRepository.save(category);
     }
-
+    
+    private async isChildOfCategory(potentialChildId: string, parentId: string): Promise<boolean> {
+        const potentialChild = await this.categoryRepository.findOne({
+            where: { id: potentialChildId },
+            relations: ['parent']
+        });
+        
+        if (!potentialChild || !potentialChild.parent) {
+            return false;
+        }
+        
+        if (potentialChild.parent.id === parentId) {
+            return true;
+        }
+        
+        return this.isChildOfCategory(potentialChild.parent.id, parentId);
+    }
+    
+    private async getMaxChildDepth(category: Category): Promise<number> {
+        if (!category.children || category.children.length === 0) {
+            return 1;
+        }
+        
+        let maxDepth = 1;
+        
+        for (const child of category.children) {
+            const childWithChildren = await this.categoryRepository.findOne({
+                where: { id: child.id },
+                relations: ['children']
+            });
+            
+            const childDepth = 1 + await this.getMaxChildDepth(childWithChildren);
+            maxDepth = Math.max(maxDepth, childDepth);
+        }
+        
+        return maxDepth;
+    }
+    
+    private async updateChildrenLevels(parent: Category, parentLevel: number): Promise<void> {
+        const children = await this.categoryRepository.find({
+            where: { parent: { id: parent.id } },
+            relations: ['children']
+        });
+        
+        for (const child of children) {
+            child.level = parentLevel + 1;
+            await this.categoryRepository.save(child);
+            
+            if (child.children && child.children.length > 0) {
+                await this.updateChildrenLevels(child, child.level);
+            }
+        }
+    }
+    
     async deleteCategory(
         id: string,
         isCreator: boolean,
     ): Promise<{ message: string }> {
         if (!isCreator) {
-          throw new UnauthorizedException('Access denied. Creator only.');
+            throw new UnauthorizedException('Access denied. Creator only.');
         }
-    
+        
         const category = await this.categoryRepository.findOne({ where: { id } });
-    
+        
         if (!category) {
-          throw new NotFoundException('Category not found');
+            throw new NotFoundException('Category not found');
         }
-    
+        
         await this.categoryRepository.remove(category);
-    
+        
         return { message: 'Category deleted successfully' };
     }
-
+    
     async getAllCategory(): Promise<Category[]> {
-        return await this.categoryRepository.find();
+        const allCategories = await this.categoryRepository.find({ 
+            relations: ['parent', 'children'] 
+        });
+        
+        const rootCategories = allCategories.filter(category => !category.parent);
+        
+        for (const rootCategory of rootCategories) {
+            this.buildCategoryTree(rootCategory, allCategories);
+        }
+        
+        return rootCategories;
+    }
+    
+    private buildCategoryTree(parent: Category, allCategories: Category[]): void {
+        const children = allCategories.filter(
+            category => category.parent && category.parent.id === parent.id
+        );
+        
+        parent.children = children;
+
+        for (const child of children) {
+            this.buildCategoryTree(child, allCategories);
+        }
     }
 
     async getCategoryById(id: string): Promise<Category> {
-        const category = await this.categoryRepository.findOne({ where: { id } });
+        const category = await this.categoryRepository.findOne({ where: { id }, relations: ['parent', 'children'] });
     
         if (!category) {
           throw new NotFoundException('Category not found');

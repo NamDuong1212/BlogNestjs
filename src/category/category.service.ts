@@ -14,12 +14,12 @@ export class CategoryService {
     private readonly categoryRepository: Repository<Category>,
   ) {}
 
-  async getAllCategory(): Promise<Category[]> {
-    return await this.categoryRepository.find();
+  async getAllCategories(): Promise<Category[]> {
+    return await this.categoryRepository.find({ relations: ['parent', 'children'] });
   }
 
   async getCategoryById(id: string): Promise<Category> {
-    const category = await this.categoryRepository.findOne({ where: { id } });
+    const category = await this.categoryRepository.findOne({ where: { id }, relations: ['parent', 'children'] });
 
     if (!category) {
       throw new NotFoundException('Category not found');
