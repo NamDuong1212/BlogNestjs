@@ -33,21 +33,19 @@ export class PostService {
     content: string,
     categoryId: string,
   ) {
-    // Find the category with its parent relation
     const category = await this.categoryRepository.findOne({
       where: { id: categoryId },
       relations: ['parent'],
     });
-  
+
     if (!category) {
       throw new NotFoundException('Category not found.');
     }
-  
-    // Check if this is a level 4 category by traversing up the parent chain
+
     let currentCategory = category;
     let categoryLevel = 1;
     let categoryHierarchy = [currentCategory.id];
-  
+
     while (currentCategory.parent) {
       categoryLevel++;
       currentCategory = await this.categoryRepository.findOne({
@@ -56,70 +54,74 @@ export class PostService {
       });
       categoryHierarchy.unshift(currentCategory.id);
     }
-  
+
     if (categoryLevel !== 4) {
-      throw new BadRequestException('Posts must be assigned to a category at level 4 (leaf category)');
+      throw new BadRequestException(
+        'Posts must be assigned to a category at level 4 (leaf category)',
+      );
     }
-  
-    // Validate the complete 4-level category hierarchy
+
     if (categoryHierarchy.length !== 4) {
-      throw new BadRequestException('Invalid category hierarchy. A complete 4-level hierarchy is required.');
+      throw new BadRequestException(
+        'Invalid category hierarchy. A complete 4-level hierarchy is required.',
+      );
     }
-  
+
     const user = await this.userRepository.findOne({
       where: { id: userId },
     });
-  
+
     if (!user) {
       throw new NotFoundException('User not found.');
     }
-  
+
     const newPost = this.postRepository.create({
       title,
       content,
       category,
       user,
       isPublished: true,
-      // Store the full category hierarchy if needed
-      categoryHierarchy: categoryHierarchy.join(','), // You would need to add this field to your entity
+      categoryHierarchy: categoryHierarchy.join(','),
     });
-  
+
     const savedPost = await this.postRepository.save(newPost);
-  
+
     return {
       ...savedPost,
       author: user.username,
       avatar: user.avatar,
-      userId
+      userId,
     };
   }
-  
+
   async updatePost(id: string, updatePostDto: UpdatePostDto): Promise<Post> {
-    const post = await this.postRepository.findOne({ 
+    const post = await this.postRepository.findOne({
       where: { id },
-      relations: ['category']
+      relations: ['category'],
     });
-  
+
     if (!post) {
       throw new NotFoundException('Post not found');
     }
-  
-    // If we're updating the category, validate the new category
+
     if (updatePostDto.categoryIds) {
       const category = await this.categoryRepository.findOne({
-        where: { id: Array.isArray(updatePostDto.categoryIds) ? updatePostDto.categoryIds[0] : updatePostDto.categoryIds },
+        where: {
+          id: Array.isArray(updatePostDto.categoryIds)
+            ? updatePostDto.categoryIds[0]
+            : updatePostDto.categoryIds,
+        },
         relations: ['parent'],
       });
-  
+
       if (!category) {
         throw new NotFoundException('Category not found.');
       }
-  
-      // Check if this is a level 4 category by traversing up the parent chain
+
       let currentCategory = category;
       let categoryLevel = 1;
       let categoryHierarchy = [currentCategory.id];
-  
+
       while (currentCategory.parent) {
         categoryLevel++;
         currentCategory = await this.categoryRepository.findOne({
@@ -128,13 +130,17 @@ export class PostService {
         });
         categoryHierarchy.unshift(currentCategory.id);
       }
-  
+
       if (categoryLevel !== 4) {
-        throw new BadRequestException('Posts must be assigned to a category at level 4 (leaf category)');
+        throw new BadRequestException(
+          'Posts must be assigned to a category at level 4 (leaf category)',
+        );
       }
 
       if (categoryHierarchy.length !== 4) {
-        throw new BadRequestException('Invalid category hierarchy. A complete 4-level hierarchy is required.');
+        throw new BadRequestException(
+          'Invalid category hierarchy. A complete 4-level hierarchy is required.',
+        );
       }
 
       post.category = category;
@@ -143,48 +149,49 @@ export class PostService {
         post.categoryHierarchy = categoryHierarchy.join(',');
       }
     }
-  
-    // Update other fields from the DTO
+
     if (updatePostDto.title) {
       post.title = updatePostDto.title;
     }
-    
+
     if (updatePostDto.content) {
       post.content = updatePostDto.content;
     }
-    
+
     if ('isPublished' in updatePostDto) {
       post.isPublished = !!updatePostDto.isPublished;
     }
-  
+
     return this.postRepository.save(post);
   }
-  
+
   async getAllPost(page: number, limit: number) {
     const skip = (page - 1) * limit;
-    
+
     const [posts, total] = await this.postRepository.findAndCount({
       skip,
       take: limit,
       relations: ['category', 'category.parent', 'user'],
       where: { isPublished: true },
-      order: { createdAt: 'DESC' } // Assuming you have a createdAt field
+      order: { createdAt: 'DESC' }, // Assuming you have a createdAt field
     });
-  
-    // Enrich the posts with category hierarchy information
-    const enrichedPosts = await Promise.all(posts.map(async post => {
-      // Get the full category hierarchy for this post
-      const categoryHierarchy = await this.getCategoryHierarchy(post.category.id);
-      
-      return {
-        ...post,
-        author: post.user.username,
-        avatar: post.user.avatar,
-        userId: post.user.id,
-        categoryHierarchy
-      };
-    }));
-  
+
+    const enrichedPosts = await Promise.all(
+      posts.map(async (post) => {
+        const categoryHierarchy = await this.getCategoryHierarchy(
+          post.category.id,
+        );
+
+        return {
+          ...post,
+          author: post.user.username,
+          avatar: post.user.avatar,
+          userId: post.user.id,
+          categoryHierarchy,
+        };
+      }),
+    );
+
     return {
       data: enrichedPosts,
       pagination: {
@@ -195,41 +202,38 @@ export class PostService {
       },
     };
   }
-  
-  // Helper method to get the full category hierarchy
-  private async getCategoryHierarchy(categoryId: string): Promise<{ id: string, name: string, level: number }[]> {
+
+  private async getCategoryHierarchy(
+    categoryId: string,
+  ): Promise<{ id: string; name: string; level: number }[]> {
     const result = [];
     const categoryHierarchy = [];
     let currentCategoryId = categoryId;
-    
-    // Bắt đầu từ danh mục lá và đi ngược lên
+
     while (currentCategoryId) {
       const category = await this.categoryRepository.findOne({
         where: { id: currentCategoryId },
         relations: ['parent'],
       });
-      
+
       if (!category) break;
-      
-      // Thêm vào đầu mảng (vì chúng ta đang đi từ leaf lên root)
+
       categoryHierarchy.unshift(category);
-      
-      // Di chuyển lên parent
+
       currentCategoryId = category.parent ? category.parent.id : null;
     }
-    
-    // Gán level chính xác dựa trên vị trí trong phân cấp
+
     for (let i = 0; i < categoryHierarchy.length; i++) {
       result.push({
         id: categoryHierarchy[i].id,
         name: categoryHierarchy[i].name,
-        level: i + 1  // Level 1 là gốc, tăng dần
+        level: i + 1,
       });
     }
-    
+
     return result;
   }
-  
+
   async getPostByCategory(id: string, page: number, limit: number) {
     const skip = (page - 1) * limit;
 
@@ -298,14 +302,14 @@ export class PostService {
     if (!isCreator) {
       throw new UnauthorizedException('Access denied. Creator only.');
     }
-    
+
     const post = await this.postRepository.findOne({ where: { id } });
 
     if (!post) {
       throw new NotFoundException('Post not found');
     }
 
-    post.image = imageUrl; 
+    post.image = imageUrl;
     return this.postRepository.save(post);
   }
 
@@ -340,6 +344,9 @@ export class PostService {
   }
 
   async findOneById(postId: string): Promise<Post> {
-    return this.postRepository.findOne({ where: { id: postId }, relations: ['user'] });
+    return this.postRepository.findOne({
+      where: { id: postId },
+      relations: ['user'],
+    });
   }
 }
