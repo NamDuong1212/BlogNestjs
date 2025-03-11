@@ -49,6 +49,9 @@ export class Post {
   @Column({ default: false })
   isPublished: boolean;
 
+  @Column({ nullable: true })
+  categoryHierarchy: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

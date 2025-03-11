@@ -115,6 +115,7 @@ export class CmsService {
                 throw new NotFoundException('Parent category not found');
             }
             
+            // Calculate the level of the parent category
             let currentParent = parentCategory;
             let parentLevel = 1;
             
@@ -125,7 +126,6 @@ export class CmsService {
                     relations: ['parent']
                 });
             }
-            
             level = parentLevel + 1;
             
             if (level > 4) {
@@ -158,17 +158,19 @@ export class CmsService {
         if (!category) {
             throw new NotFoundException('Category not found');
         }
+        
+        // Check if the name already exists
         if (name && name !== category.name) {
             const existingCategory = await this.categoryRepository.findOne({ where: { name } });
             if (existingCategory) {
                 throw new UnauthorizedException('Category already exists');
             }
         }
-        
+
         if (parentId && parentId === id) {
             throw new UnauthorizedException('A category cannot be its own parent');
         }
-        
+
         if (parentId && category.children && category.children.length > 0) {
             const isChildOfCategory = await this.isChildOfCategory(parentId, id);
             if (isChildOfCategory) {
@@ -188,6 +190,7 @@ export class CmsService {
             if (!parentCategory) {
                 throw new NotFoundException('Parent category not found');
             }
+
             let currentParent = parentCategory;
             let parentLevel = 1;
             
@@ -198,13 +201,13 @@ export class CmsService {
                     relations: ['parent']
                 });
             }
-            
+
             level = parentLevel + 1;
             
             if (level > 4) {
                 throw new UnauthorizedException('Category hierarchy cannot exceed 4 levels');
             }
-            
+
             if (category.children && category.children.length > 0) {
                 const maxChildDepth = await this.getMaxChildDepth(category);
                 if (level + maxChildDepth - 1 > 4) {
@@ -227,7 +230,6 @@ export class CmsService {
         
         return this.categoryRepository.save(category);
     }
-    
     private async isChildOfCategory(potentialChildId: string, parentId: string): Promise<boolean> {
         const potentialChild = await this.categoryRepository.findOne({
             where: { id: potentialChildId },
@@ -244,7 +246,6 @@ export class CmsService {
         
         return this.isChildOfCategory(potentialChild.parent.id, parentId);
     }
-    
     private async getMaxChildDepth(category: Category): Promise<number> {
         if (!category.children || category.children.length === 0) {
             return 1;
@@ -306,21 +307,18 @@ export class CmsService {
         });
         
         const rootCategories = allCategories.filter(category => !category.parent);
-        
+
         for (const rootCategory of rootCategories) {
             this.buildCategoryTree(rootCategory, allCategories);
         }
         
         return rootCategories;
     }
-    
     private buildCategoryTree(parent: Category, allCategories: Category[]): void {
         const children = allCategories.filter(
             category => category.parent && category.parent.id === parent.id
         );
-        
         parent.children = children;
-
         for (const child of children) {
             this.buildCategoryTree(child, allCategories);
         }

@@ -26,6 +26,7 @@ export class CreatePostDto {
   @IsOptional()
   @IsArray()
   categoryIds?: string[];
+
   @ApiProperty({
     description: 'Array of tag names for the post',
     example: ['programming', 'nestjs', 'typescript'],
@@ -36,4 +37,36 @@ export class CreatePostDto {
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
+
+  @ApiProperty({
+    description: 'Category ID level 1',
+    example: '1',
+  })
+  @IsNotEmpty()
+  @IsString()
+  categoryId1: string;
+
+  @ApiProperty({
+    description: 'Category ID level 2',
+    example: '2',
+  })
+  @IsNotEmpty()
+  @IsString()
+  categoryId2: string;
+
+  @ApiProperty({
+    description: 'Category ID level 3',
+    example: '3',
+  })
+  @IsNotEmpty()
+  @IsString()
+  categoryId3: string;
+
+  @ApiProperty({
+    description: 'Category ID level 4',
+    example: '4',
+  })
+  @IsNotEmpty()
+  @IsString()
+  categoryId4: string;
 }
