@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { Post } from './post.entity';
 import { Category } from '../category/category.entity';
 import { UpdatePostDto } from './dto/update-post.dto';
@@ -235,26 +235,44 @@ export class PostService {
   }
 
   async getPostByCategory(id: string, page: number, limit: number) {
-    const skip = (page - 1) * limit;
-
-    const category = await this.categoryRepository.findOne({
-      where: { id },
-    });
+    const category = await this.categoryRepository.findOne({ where: { id } });
     if (!category) {
-      throw new Error('Category not found');
+      throw new NotFoundException(`Category with id ${id} not found.`);
     }
 
-    const [posts, total] = await this.postRepository.findAndCount({
-      skip,
-      take: limit,
-      where: {
-        category: { id },
-      },
-      relations: ['category'],
-    });
+    const skip = (page - 1) * limit;
+
+    const qb = this.postRepository
+      .createQueryBuilder('post')
+      .leftJoinAndSelect('post.category', 'category')
+      .leftJoinAndSelect('post.user', 'user')
+      .where('post.isPublished = :published', { published: true })
+      .andWhere(`CONCAT(',', post.categoryHierarchy, ',') LIKE :catId`, {
+        catId: `%,${id},%`,
+      })
+      .orderBy('post.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    const [posts, total] = await qb.getManyAndCount();
+
+    const enrichedPosts = await Promise.all(
+      posts.map(async (post) => {
+        const categoryHierarchy = await this.getCategoryHierarchy(
+          post.category.id,
+        );
+        return {
+          ...post,
+          author: post.user.username,
+          avatar: post.user.avatar,
+          userId: post.user.id,
+          categoryHierarchy,
+        };
+      }),
+    );
 
     return {
-      data: posts,
+      data: enrichedPosts,
       pagination: {
         page,
         limit,
@@ -265,14 +283,91 @@ export class PostService {
   }
 
   async getPostById(id: string) {
-    const post = await this.postRepository.findOne({ where: { id } });
+    const post = await this.postRepository.findOne({
+      where: { id },
+      relations: ['category', 'user'],
+    });
 
     if (!post) {
       throw new NotFoundException('Post not found');
     }
 
     post.viewCount += 1;
-    return this.postRepository.save(post);
+    await this.postRepository.save(post);
+
+    const categoryHierarchy = await this.getCategoryHierarchy(post.category.id);
+
+    const relatedPosts = await this.getRelatedPosts(
+      post.categoryHierarchy, // Truyền danh sách category
+      id,
+    );
+
+    return {
+      ...post,
+      author: post.user.username,
+      avatar: post.user.avatar,
+      userId: post.user.id,
+      categoryHierarchy,
+      relatedPosts,
+    };
+  }
+
+  async getRelatedPosts(categoryHierarchy: string, excludePostId: string) {
+    if (!categoryHierarchy) {
+      return [];
+    }
+
+    try {
+      const categories = categoryHierarchy
+        .split(',')
+        .filter((id) => id.trim() !== '');
+
+      if (categories.length === 0) {
+        return [];
+      }
+
+      const posts = await this.postRepository
+        .createQueryBuilder('post')
+        .leftJoinAndSelect('post.category', 'category')
+        .leftJoinAndSelect('post.user', 'user')
+        .where('post.isPublished = :published', { published: true })
+        .andWhere('post.id != :postId', { postId: excludePostId })
+        .andWhere(
+          new Brackets((qb) => {
+            categories.forEach((catId) => {
+              qb.orWhere(
+                `CONCAT(',', post.categoryHierarchy, ',') LIKE :catId${catId}`,
+                {
+                  [`catId${catId}`]: `%,${catId},%`,
+                },
+              );
+            });
+          }),
+        )
+        .orderBy('post.createdAt', 'DESC') // Sắp xếp theo bài mới nhất
+        .limit(10)
+        .getMany();
+
+      const enrichedPosts = await Promise.all(
+        posts.map(async (post) => {
+          const categoryHierarchy = await this.getCategoryHierarchy(
+            post.category.id,
+          );
+          return {
+            ...post,
+            author: post.user.username,
+            avatar: post.user.avatar,
+            userId: post.user.id,
+            categoryHierarchy,
+          };
+        }),
+      );
+
+      return enrichedPosts;
+    } catch (error) {
+      console.error('Error getting related posts:', error);
+      return [];
+    }
   }
 
   async deletePost(
@@ -329,11 +424,26 @@ export class PostService {
       where: {
         user: { id: userId },
       },
-      relations: ['category'],
+      relations: ['category', 'user'],
     });
 
+    const enrichedPosts = await Promise.all(
+      posts.map(async (post) => {
+        const categoryHierarchy = await this.getCategoryHierarchy(
+          post.category.id,
+        );
+        return {
+          ...post,
+          author: post.user.username,
+          avatar: post.user.avatar,
+          userId: post.user.id,
+          categoryHierarchy,
+        };
+      }),
+    );
+
     return {
-      data: posts,
+      data: enrichedPosts,
       pagination: {
         page,
         limit,

@@ -94,7 +94,7 @@ export class PostController {
     type: CreatePostDto,
   })
   @Get('/getAll')
-  async getAllPosts(@Query('page') page = 1, @Query('limit') limit = 4) {
+  async getAllPosts(@Query('page') page = 1, @Query('limit') limit = 10) {
     return this.postService.getAllPost(page, limit);
   }
 
@@ -224,6 +224,33 @@ export class PostController {
   ) {
     return this.postService.getPostByCreator(userId, page, limit);
   }
+
+  @ApiTags('Post')
+  @ApiBearerAuth('')
+  @ApiOperation({
+    summary: 'Get related posts',
+    description: 'Fetches related posts based on category hierarchy, excluding the current post.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of related posts',
+    type: CreatePostDto,
+  })
+  @Get('/related/:postId')
+async getRelatedPosts(
+  @Param('postId') postId: string,
+  @Query('categoryHierarchy') categoryHierarchy: string,
+) {
+  if (!categoryHierarchy) {
+    const post = await this.postService.findOneById(postId);
+    if (!post || !post.categoryHierarchy) {
+      throw new NotFoundException('Post or category hierarchy not found');
+    }
+    categoryHierarchy = post.categoryHierarchy;
+  }
+  
+  return this.postService.getRelatedPosts(categoryHierarchy, postId);
+}
 
   @ApiTags('Post')
   @ApiBearerAuth('token')
