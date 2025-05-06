@@ -67,4 +67,51 @@ export class LikeController {
   async countLikes(@Param('postId') postId: string) {
     return { likes: await this.likeService.countLikes(postId) };
   }
+  @ApiTags('Like')
+  @ApiBearerAuth('token')
+  @ApiOperation({
+    summary: 'Check like status',
+    description: 'Checks if a user has liked a post (1 for liked, 0 for not liked)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Like status checked successfully.',
+    schema: {
+      properties: {
+        status: {
+          type: 'number',
+          example: 1,
+          description: '1 if the user liked the post, 0 otherwise'
+        }
+      }
+    }
+  })
+  @Get(':postId/status')
+  @UseGuards(JwtAuthGuard)
+  async checkLikeStatus(
+    @Param('postId') postId: string,
+    @Req() req: Request,
+  ) {
+    const userId = req['user']['id'];
+    const status = await this.likeService.checkLikeStatus(postId, userId);
+    return { status };
+  }
+
+  @ApiTags('Like')
+  @ApiBearerAuth('token')
+  @ApiOperation({
+    summary: 'Get user liked posts',
+    description: 'Retrieves all posts liked by the authenticated user'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User liked posts retrieved successfully.',
+  })
+  @Get('user/posts')
+  @UseGuards(JwtAuthGuard)
+  async getUserLikedPosts(@Req() req: Request) {
+    const userId = req['user']['id'];
+    const posts = await this.likeService.getUserLikedPosts(userId);
+    return { posts };
+  }
 }

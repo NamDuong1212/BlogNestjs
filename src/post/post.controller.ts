@@ -21,17 +21,24 @@ import {
 import { PostService } from './post.service';
 import { JwtAuthGuard } from 'src/auth/guard/jwt-auth.guard';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CreatePostDto } from './dto/create-post.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
-import * as PDFDocument from 'pdfkit';
-import { Response } from 'express';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Controller('post')
 export class PostController {
-  constructor(private readonly postService: PostService) {}
+  constructor(
+    private readonly postService: PostService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   @ApiTags('Post')
   @ApiBearerAuth('token')
@@ -42,7 +49,7 @@ export class PostController {
   @ApiResponse({
     status: 201,
     description: 'Post created successfully.',
-    type: CreatePostDto
+    type: CreatePostDto,
   })
   @Post('create')
   @UseGuards(JwtAuthGuard)
@@ -117,7 +124,7 @@ export class PostController {
   ) {
     return this.postService.getPostByCategory(id, page, limit);
   }
-  
+
   @ApiTags('Post')
   @ApiBearerAuth('token')
   @ApiOperation({
@@ -153,7 +160,7 @@ export class PostController {
   @UseInterceptors(
     FileInterceptor('image', {
       storage: diskStorage({
-        destination: './uploads/posts',
+        destination: './temp/uploads', // Thay đổi thành thư mục tạm
         filename: (req, file, callback) => {
           const filename = `${uuidv4()}-${file.originalname}`;
           callback(null, filename);
@@ -161,21 +168,34 @@ export class PostController {
       }),
       fileFilter: (req, file, callback) => {
         if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
-          return callback(new BadRequestException('Only image files are allowed!'), false);
+          return callback(
+            new BadRequestException('Only image files are allowed!'),
+            false,
+          );
         }
         callback(null, true);
       },
     }),
   )
-  async uploadImage(@Param('id') id: string, @UploadedFile() file, @Request() req) {
+  async uploadImage(
+    @Param('id') id: string,
+    @UploadedFile() file,
+    @Request() req,
+  ) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
 
-    const imageUrl = `/uploads/posts/${file.filename}`;
+    // Upload to Cloudinary instead of storing locally
+    const cloudinaryUrl = await this.cloudinaryService.uploadImage(file);
 
     const isCreator = req.user?.isCreator;
-    const updatedImg = await this.postService.updatePostImage(id, imageUrl, isCreator);
+    const updatedImg = await this.postService.updatePostImage(
+      id,
+      cloudinaryUrl, // Sử dụng URL từ Cloudinary
+      isCreator,
+    );
+
     if (!updatedImg) {
       throw new InternalServerErrorException('Failed to upload image');
     }
@@ -220,7 +240,7 @@ export class PostController {
   async getPostByCreator(
     @Param('userId') userId: string,
     @Query('page') page = 1,
-    @Query('limit') limit = 20,
+    @Query('limit') limit = 10,
   ) {
     return this.postService.getPostByCreator(userId, page, limit);
   }
@@ -229,7 +249,8 @@ export class PostController {
   @ApiBearerAuth('')
   @ApiOperation({
     summary: 'Get related posts',
-    description: 'Fetches related posts based on category hierarchy, excluding the current post.',
+    description:
+      'Fetches related posts based on category hierarchy, excluding the current post.',
   })
   @ApiResponse({
     status: 200,
@@ -237,58 +258,42 @@ export class PostController {
     type: CreatePostDto,
   })
   @Get('/related/:postId')
-async getRelatedPosts(
-  @Param('postId') postId: string,
-  @Query('categoryHierarchy') categoryHierarchy: string,
-) {
-  if (!categoryHierarchy) {
-    const post = await this.postService.findOneById(postId);
-    if (!post || !post.categoryHierarchy) {
-      throw new NotFoundException('Post or category hierarchy not found');
+  async getRelatedPosts(
+    @Param('postId') postId: string,
+    @Query('categoryHierarchy') categoryHierarchy: string,
+  ) {
+    if (!categoryHierarchy) {
+      const post = await this.postService.findOneById(postId);
+      if (!post || !post.categoryHierarchy) {
+        throw new NotFoundException('Post or category hierarchy not found');
+      }
+      categoryHierarchy = post.categoryHierarchy;
     }
-    categoryHierarchy = post.categoryHierarchy;
+
+    return this.postService.getRelatedPosts(categoryHierarchy, postId);
   }
-  
-  return this.postService.getRelatedPosts(categoryHierarchy, postId);
-}
 
   @ApiTags('Post')
-  @ApiBearerAuth('token')
+  @ApiBearerAuth('')
   @ApiOperation({
-    summary: 'Download a post',
-    description: 'Allows a creator to download a post by ID.',
+    summary: 'Search posts',
+    description: 'Search posts by title with pagination support.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Post downloaded successfully',
+    description: 'Search results',
+    type: CreatePostDto,
   })
-  @Get(':postId/download')
-  @UseGuards(JwtAuthGuard)
-  async downloadPost(@Param('postId') postId: string, @Res() res: Response) {
-    const post = await this.postService.findOneById(postId);
-  
-    if (!post) {
-      throw new NotFoundException('Post not found');
+  @Get('/search')
+  async searchPosts(
+    @Query('query') query: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+  ) {
+    if (!query || query.trim() === '') {
+      throw new BadRequestException('Search query cannot be empty');
     }
-  
-    const doc = new PDFDocument();
-    const sanitizedTitle = post.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-  
-    const fontPath = './src/assets/fonts/times.TTF';
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${sanitizedTitle}.pdf"`);
-  
-    doc.pipe(res);
-  
-    doc.font(fontPath);
-  
-    doc.fontSize(20).text(post.title, { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).text(`Author: ${post.user.username}`, { align: 'left' });
-    doc.moveDown();
-    doc.fontSize(14).text(post.content, { align: 'justify', lineGap: 6 });
-  
-    doc.end();
+
+    return this.postService.searchPosts(query, page, limit);
   }
-  
 }

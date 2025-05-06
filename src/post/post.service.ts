@@ -397,13 +397,13 @@ export class PostService {
     if (!isCreator) {
       throw new UnauthorizedException('Access denied. Creator only.');
     }
-
+    
     const post = await this.postRepository.findOne({ where: { id } });
-
+    
     if (!post) {
       throw new NotFoundException('Post not found');
     }
-
+    
     post.image = imageUrl;
     return this.postRepository.save(post);
   }
@@ -458,5 +458,49 @@ export class PostService {
       where: { id: postId },
       relations: ['user'],
     });
+  }
+  
+  async searchPosts(
+    searchTerm: string,
+    page: number = 1,
+    limit: number = 10
+  ) {
+    const skip = (page - 1) * limit;
+    
+    const [posts, total] = await this.postRepository
+      .createQueryBuilder('post')
+      .leftJoinAndSelect('post.category', 'category')
+      .leftJoinAndSelect('post.user', 'user')
+      .where('post.isPublished = :published', { published: true })
+      .andWhere('LOWER(post.title) LIKE LOWER(:title)', { title: `%${searchTerm}%` })
+      .orderBy('post.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+  
+    const enrichedPosts = await Promise.all(
+      posts.map(async (post) => {
+        const categoryHierarchy = await this.getCategoryHierarchy(
+          post.category.id,
+        );
+        return {
+          ...post,
+          author: post.user.username,
+          avatar: post.user.avatar,
+          userId: post.user.id,
+          categoryHierarchy,
+        };
+      }),
+    );
+  
+    return {
+      data: enrichedPosts,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 }

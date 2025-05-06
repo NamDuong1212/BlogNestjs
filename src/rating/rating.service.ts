@@ -41,15 +41,15 @@ export class RatingService {
     return !!post;
   }
 
-  async getAverageRating(userId: string, postId: string) {
-    const isCreator = await this.isPostCreator(userId, postId);
-    if (!isCreator) {
-      throw new NotFoundException('User is not the creator of this post');
+  async getAverageRating(postId: string) {
+    const post = await this.postRepository.findOne({ where: { id: postId } });
+    if (!post) {
+      throw new NotFoundException('Post not found');
     }
-
+  
     const ratings = await this.ratingRepository.find({ where: { post: { id: postId } } });
     if (!ratings.length) return 0;
-
+  
     const totalStars = ratings.reduce((sum, rating) => sum + rating.stars, 0);
     return totalStars / ratings.length;
   }

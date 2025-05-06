@@ -59,4 +59,28 @@ export class LikeService {
   async countLikes(postId: string): Promise<number> {
     return this.likeRepository.count({ where: { post: { id: postId } } });
   }
+
+  async checkLikeStatus(postId: string, userId: string): Promise<number> {
+    const like = await this.likeRepository.findOne({
+      where: { post: { id: postId }, user: { id: userId } },
+    });
+
+    return like ? 1 : 0;
+  }
+
+  async getUserLikedPosts(userId: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const likes = await this.likeRepository.find({
+      where: { user: { id: userId } },
+      relations: ['post'],
+    });
+    if (!likes || likes.length === 0) {
+      throw new NotFoundException('No liked posts found for this user');
+    }
+    return likes.map(like => like.post);
+  }
 }

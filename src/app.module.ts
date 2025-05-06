@@ -14,6 +14,7 @@ import { WalletModule } from './wallet/wallet.module';
 import { RatingModule } from './rating/rating.module';
 import { CmsModule } from './cms/cms.module';
 import { ReportModule } from './report/report.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ReportModule } from './report/report.module';
     RatingModule,
     CmsModule,
     ReportModule,
+    CloudinaryModule
   ],
   controllers: [AppController],
   providers: [AppService],

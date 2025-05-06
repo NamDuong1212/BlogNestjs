@@ -30,4 +30,9 @@ export class UpdatePostDto extends PartialType(CreatePostDto) {
     type: [String],
   })
   tags?: string[];
+
+  latitude?: number;
+  longitude?: number;
+  locationName?: string;
+  locationAddress?: string;
 }

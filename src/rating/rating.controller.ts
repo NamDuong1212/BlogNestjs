@@ -31,26 +31,19 @@ export class RatingController {
   }
 
   @ApiTags('Rating')
-  @ApiBearerAuth('token')
-  @ApiOperation({
-    summary: 'Get average rating',
-    description: 'Allows a user to get the average rating for a post.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Get average rating successfully.',
-    type: Number,
-  })
-  @Get('/:postId')
-  @UseGuards(JwtAuthGuard)
-  async getAverageRating(@Req() req, @Param('postId') postId: string) {
-    const user = req.user;
-
-    if (!user.isCreator) {
-      throw new UnauthorizedException('Access denied. Creator only.');
-    }
-
-    const userId = req.user.id;
-    return this.ratingService.getAverageRating(userId, postId);
-  }
+@ApiBearerAuth('token')
+@ApiOperation({
+  summary: 'Get average rating',
+  description: 'Allows a user to get the average rating for a post.',
+})
+@ApiResponse({
+  status: 200,
+  description: 'Get average rating successfully.',
+  type: Number,
+})
+@Get('/:postId')
+@UseGuards(JwtAuthGuard)
+async getAverageRating(@Param('postId') postId: string) {
+  return this.ratingService.getAverageRating(postId);
+}
 }

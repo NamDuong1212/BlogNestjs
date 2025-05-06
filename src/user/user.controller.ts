@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Patch, Request, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Patch, Request, UploadedFile, UseGuards, UseInterceptors, InternalServerErrorException } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from 'src/auth/guard/jwt-auth.guard';
@@ -6,10 +6,13 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as path from 'path';
 import { diskStorage } from 'multer';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService,
+    private readonly cloudinaryService: CloudinaryService
+  ) {}
 
   @ApiTags('User')
   @ApiBearerAuth('token')
@@ -48,7 +51,7 @@ export class UserController {
   @UseInterceptors(
     FileInterceptor('avatar', {
       storage: diskStorage({
-        destination: './uploads/avatars',
+        destination: './temp/avatars',
         filename: (req, file, callback) => {
           const fileName = Date.now() + path.extname(file.originalname);
           callback(null, fileName);
@@ -62,16 +65,35 @@ export class UserController {
       },
     }),
   )
-  async uploadAvatar(@Request() req, @UploadedFile() file: Express.Multer.File) {
+  async uploadAvatar(
+    @Request() req,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
     if (!file) {
-      throw new Error('File is required');
+      throw new BadRequestException('No file uploaded');
     }
-
+  
+    // Upload to Cloudinary
+    let avatarUrl: string;
+    try {
+      avatarUrl = await this.cloudinaryService.uploadImage(file);
+    } catch (err) {
+      throw new InternalServerErrorException('Cloudinary upload failed');
+    }
+  
     const userId = req.user.id;
-    const avatarUrl = `/uploads/avatars/${file.filename}`;
-
-    const updatedUser = await this.userService.updateProfileAvatar(userId, avatarUrl);
-
-    return { message: 'Avatar uploaded successfully', data: updatedUser };
+    const updatedUser = await this.userService.updateProfileAvatar(
+      userId,
+      avatarUrl,
+    );
+  
+    if (!updatedUser) {
+      throw new InternalServerErrorException('Failed to update user avatar');
+    }
+  
+    return {
+      message: 'Avatar uploaded successfully',
+      data: updatedUser,
+    };
   }
 }
