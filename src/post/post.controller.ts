@@ -186,7 +186,6 @@ export class PostController {
       throw new BadRequestException('No file uploaded');
     }
 
-    // Upload to Cloudinary instead of storing locally
     const cloudinaryUrl = await this.cloudinaryService.uploadImage(file);
 
     const isCreator = req.user?.isCreator;

@@ -27,18 +27,6 @@ export class Post {
   @Column({ nullable: true })
   image: string;
 
-  @Column({ nullable: true, type: 'float' })
-  latitude: number;
-
-  @Column({ nullable: true, type: 'float' })
-  longitude: number;
-
-  @Column({ nullable: true })
-  locationName: string;
-
-  @Column({ nullable: true })
-  locationAddress: string;
-
   @ManyToOne(() => Category, (category) => category.posts, { eager: true })
   @JoinColumn({ name: 'categoryId' })
   category: Category;
