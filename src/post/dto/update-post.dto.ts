@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { PartialType } from '@nestjs/mapped-types';
 import { CreatePostDto } from './create-post.dto';
+import { ArrayMaxSize, IsArray, IsOptional, IsString } from 'class-validator';
 
 export class UpdatePostDto extends PartialType(CreatePostDto) {
   @ApiProperty({
@@ -23,6 +24,19 @@ export class UpdatePostDto extends PartialType(CreatePostDto) {
     required: false,
   })
   categoryIds?: string[];
+
+  @ApiProperty({
+    description: 'Array of image URLs for the post (max 10)',
+    example: ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'],
+    required: false,
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10, { message: 'A post can have a maximum of 10 images' })
+  @IsString({ each: true })
+  images?: string[];
+
   @ApiProperty({
     description: 'Array of tag names for the post',
     example: ['programming', 'nestjs', 'typescript'],

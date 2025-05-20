@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString, ArrayMaxSize } from 'class-validator';
 
 export class CreatePostDto {
   @ApiProperty({
@@ -19,13 +19,25 @@ export class CreatePostDto {
   content: string;
 
   @ApiProperty({
-    description: 'List of category IDs the post belongs to.',
+    description: 'List of Category IDs the post belongs to.',
     example: ['1', '2'],
     required: false,
   })
   @IsOptional()
   @IsArray()
   categoryIds?: string[];
+
+  @ApiProperty({
+    description: 'Array of image URLs for the post (max 10)',
+    example: ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'],
+    required: false,
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10, { message: 'A post can have a maximum of 10 images' })
+  @IsString({ each: true })
+  images?: string[];
 
   @ApiProperty({
     description: 'Array of tag names for the post',

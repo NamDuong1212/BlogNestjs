@@ -15,6 +15,8 @@ import { RatingModule } from './rating/rating.module';
 import { CmsModule } from './cms/cms.module';
 import { ReportModule } from './report/report.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { ItineraryModule } from './itinerary/itinerary.module';
+
 
 @Module({
   imports: [
@@ -41,7 +43,8 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     RatingModule,
     CmsModule,
     ReportModule,
-    CloudinaryModule
+    CloudinaryModule,
+    ItineraryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

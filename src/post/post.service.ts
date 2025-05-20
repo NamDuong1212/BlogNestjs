@@ -82,6 +82,7 @@ export class PostService {
       user,
       isPublished: true,
       categoryHierarchy: categoryHierarchy.join(','),
+      images: [], // Initialize empty images array
     });
 
     const savedPost = await this.postRepository.save(newPost);
@@ -160,6 +161,11 @@ export class PostService {
 
     if ('isPublished' in updatePostDto) {
       post.isPublished = !!updatePostDto.isPublished;
+    }
+
+    // Handle images array update if provided
+    if (updatePostDto.images) {
+      post.images = updatePostDto.images;
     }
 
     return this.postRepository.save(post);
@@ -393,6 +399,7 @@ export class PostService {
     return { message: 'Post deleted successfully' };
   }
 
+  // Update single image (legacy method for backward compatibility)
   async updatePostImage(id: string, imageUrl: string, isCreator: boolean) {
     if (!isCreator) {
       throw new UnauthorizedException('Access denied. Creator only.');
@@ -404,54 +411,127 @@ export class PostService {
       throw new NotFoundException('Post not found');
     }
     
+    // Set the main image
     post.image = imageUrl;
+    
+    // Also add to images array if it doesn't already exist
+    if (!post.images) {
+      post.images = [];
+    }
+    
+    if (!post.images.includes(imageUrl)) {
+      post.images.push(imageUrl);
+    }
+    
     return this.postRepository.save(post);
   }
 
-  async getPostByCreator(userId: string, page: number, limit: number) {
-    const skip = (page - 1) * limit;
-
-    const user = await this.userRepository.findOne({
-      where: { id: userId, isCreator: true },
-    });
-    if (!user) {
-      throw new UnauthorizedException('User is not a creator or not found.');
+  // New method to handle multiple images
+  async updatePostImages(id: string, imageUrls: string[], isCreator: boolean) {
+    if (!isCreator) {
+      throw new UnauthorizedException('Access denied. Creator only.');
     }
-
-    const [posts, total] = await this.postRepository.findAndCount({
-      skip,
-      take: limit,
-      where: {
-        user: { id: userId },
-      },
-      relations: ['category', 'user'],
-    });
-
-    const enrichedPosts = await Promise.all(
-      posts.map(async (post) => {
-        const categoryHierarchy = await this.getCategoryHierarchy(
-          post.category.id,
-        );
-        return {
-          ...post,
-          author: post.user.username,
-          avatar: post.user.avatar,
-          userId: post.user.id,
-          categoryHierarchy,
-        };
-      }),
-    );
-
-    return {
-      data: enrichedPosts,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+    
+    const post = await this.postRepository.findOne({ where: { id } });
+    
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+    
+    // Initialize images array if it doesn't exist
+    if (!post.images) {
+      post.images = [];
+    }
+    
+    // Add new images to the array
+    for (const imageUrl of imageUrls) {
+      if (!post.images.includes(imageUrl)) {
+        post.images.push(imageUrl);
+      }
+    }
+    
+    // If the post doesn't have a main image yet, set the first uploaded image as the main image
+    if (!post.image && post.images.length > 0) {
+      post.image = post.images[0];
+    }
+    
+    // Ensure we don't exceed the limit of 10 images
+    if (post.images.length > 10) {
+      post.images = post.images.slice(0, 10);
+    }
+    
+    return this.postRepository.save(post);
   }
+
+  async deletePostImage(id: string, imageUrl: string, isCreator: boolean) {
+  if (!isCreator) {
+    throw new UnauthorizedException('Access denied. Creator only.');
+  }
+
+  const post = await this.postRepository.findOne({ where: { id } });
+
+  if (!post) {
+    throw new NotFoundException('Post not found');
+  }
+
+  // Remove the specific image from the images array
+  if (post.images) {
+    post.images = post.images.filter(img => img !== imageUrl);
+
+    // If the deleted image was the main image, set a new main image or clear it
+    if (post.image === imageUrl) {
+      post.image = post.images.length > 0 ? post.images[0] : null;
+    }
+  }
+
+  return this.postRepository.save(post);
+}
+
+  async getPostByCreator(userId: string, page: number, limit: number) {
+  const skip = (page - 1) * limit;
+
+  const user = await this.userRepository.findOne({
+    where: { id: userId, isCreator: true },
+  });
+  if (!user) {
+    throw new UnauthorizedException('User is not a creator or not found.');
+  }
+
+  const [posts, total] = await this.postRepository.findAndCount({
+    skip,
+    take: limit,
+    where: {
+      user: { id: userId },
+    },
+    relations: ['category', 'user'],
+    order: { updatedAt: 'DESC' }, // Sắp xếp theo updatedAt giảm dần
+  });
+
+  const enrichedPosts = await Promise.all(
+    posts.map(async (post) => {
+      const categoryHierarchy = await this.getCategoryHierarchy(
+        post.category.id,
+      );
+      return {
+        ...post,
+        author: post.user.username,
+        avatar: post.user.avatar,
+        userId: post.user.id,
+        categoryHierarchy,
+      };
+    }),
+  );
+
+  return {
+    data: enrichedPosts,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}
 
   async findOneById(postId: string): Promise<Post> {
     return this.postRepository.findOne({

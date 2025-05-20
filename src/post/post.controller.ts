@@ -14,6 +14,7 @@ import {
   UseInterceptors,
   BadRequestException,
   UploadedFile,
+  UploadedFiles,
   InternalServerErrorException,
   NotFoundException,
   Res,
@@ -23,12 +24,13 @@ import { JwtAuthGuard } from 'src/auth/guard/jwt-auth.guard';
 import { UpdatePostDto } from './dto/update-post.dto';
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { CreatePostDto } from './dto/create-post.dto';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
@@ -79,7 +81,7 @@ export class PostController {
     description: 'Post updated successfully.',
     type: UpdatePostDto,
   })
-  @Patch('/:id')
+  @Patch(':id')
   @UseGuards(JwtAuthGuard)
   async updatePost(
     @Param('id') id: string,
@@ -89,6 +91,7 @@ export class PostController {
     return { data: updatePost };
   }
 
+  // ENDPOINTS CỐ ĐỊNH đặt trước các endpoints với tham số động
   @ApiTags('Post')
   @ApiBearerAuth('')
   @ApiOperation({
@@ -100,15 +103,43 @@ export class PostController {
     description: 'All posts',
     type: CreatePostDto,
   })
-  @Get('/getAll')
+  @Get('getAll')
   async getAllPosts(@Query('page') page = 1, @Query('limit') limit = 10) {
     return this.postService.getAllPost(page, limit);
   }
 
+  // ENDPOINT SEARCH đặt trước các endpoints với tham số động
   @ApiTags('Post')
   @ApiBearerAuth('')
   @ApiOperation({
-    summary: 'Get posts by category',
+    summary: 'Search posts',
+    description: 'Search posts by title with pagination support.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Search results',
+    type: CreatePostDto,
+  })
+  @Get('search')
+async searchPosts(
+  @Query('query') query: string,
+  @Query('page') page = 1,
+  @Query('limit') limit = 10,
+) {
+  if (!query || query.trim() === '') {
+    throw new BadRequestException('Search query cannot be empty');
+  }
+
+  // chuyển hyphen thành space
+  const normalizedQuery = query.replace(/-/g, ' ');
+
+  return this.postService.searchPosts(normalizedQuery, page, limit);
+}
+
+  @ApiTags('Post')
+  @ApiBearerAuth('')
+  @ApiOperation({
+    summary: 'Get posts by Category',
     description: 'Fetches posts belonging to a specific category.',
   })
   @ApiResponse({
@@ -123,104 +154,6 @@ export class PostController {
     @Query('limit') limit = 10,
   ) {
     return this.postService.getPostByCategory(id, page, limit);
-  }
-
-  @ApiTags('Post')
-  @ApiBearerAuth('token')
-  @ApiOperation({
-    summary: 'Delete a post',
-    description: 'Allows a creator to delete a post by ID.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'The post was deleted successfully',
-    type: CreatePostDto,
-  })
-  @Delete('/:id')
-  @UseGuards(JwtAuthGuard)
-  async deletePost(@Param('id') id: string, @Request() req) {
-    const isCreator = req.user?.isCreator;
-    const post = await this.postService.deletePost(id, isCreator);
-    return post;
-  }
-
-  @ApiTags('Post')
-  @ApiBearerAuth('token')
-  @ApiOperation({
-    summary: 'Upload an image to a post',
-    description: 'Allows a creator to upload an image to a post by ID.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Image uploaded successfully',
-    type: CreatePostDto,
-  })
-  @Patch('/:id/upload-image')
-  @UseGuards(JwtAuthGuard)
-  @UseInterceptors(
-    FileInterceptor('image', {
-      storage: diskStorage({
-        destination: './temp/uploads', // Thay đổi thành thư mục tạm
-        filename: (req, file, callback) => {
-          const filename = `${uuidv4()}-${file.originalname}`;
-          callback(null, filename);
-        },
-      }),
-      fileFilter: (req, file, callback) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
-          return callback(
-            new BadRequestException('Only image files are allowed!'),
-            false,
-          );
-        }
-        callback(null, true);
-      },
-    }),
-  )
-  async uploadImage(
-    @Param('id') id: string,
-    @UploadedFile() file,
-    @Request() req,
-  ) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded');
-    }
-
-    const cloudinaryUrl = await this.cloudinaryService.uploadImage(file);
-
-    const isCreator = req.user?.isCreator;
-    const updatedImg = await this.postService.updatePostImage(
-      id,
-      cloudinaryUrl, // Sử dụng URL từ Cloudinary
-      isCreator,
-    );
-
-    if (!updatedImg) {
-      throw new InternalServerErrorException('Failed to upload image');
-    }
-
-    return {
-      message: 'Image uploaded successfully',
-      data: {
-        data: updatedImg,
-      },
-    };
-  }
-
-  @ApiTags('Post')
-  @ApiBearerAuth('')
-  @ApiOperation({
-    summary: 'View a post',
-    description: 'Fetches the details of a single post by its ID.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Post details',
-    type: CreatePostDto,
-  })
-  @Get('/:postId')
-  async viewPost(@Param('postId') postId: string) {
-    return this.postService.getPostById(postId);
   }
 
   @ApiTags('Post')
@@ -256,7 +189,7 @@ export class PostController {
     description: 'List of related posts',
     type: CreatePostDto,
   })
-  @Get('/related/:postId')
+  @Get('related/:postId')
   async getRelatedPosts(
     @Param('postId') postId: string,
     @Query('categoryHierarchy') categoryHierarchy: string,
@@ -273,26 +206,215 @@ export class PostController {
   }
 
   @ApiTags('Post')
-  @ApiBearerAuth('')
+  @ApiBearerAuth('token')
   @ApiOperation({
-    summary: 'Search posts',
-    description: 'Search posts by title with pagination support.',
+    summary: 'Delete a post',
+    description: 'Allows a creator to delete a post by ID.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Search results',
+    description: 'The post was deleted successfully',
     type: CreatePostDto,
   })
-  @Get('/search')
-  async searchPosts(
-    @Query('query') query: string,
-    @Query('page') page = 1,
-    @Query('limit') limit = 10,
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  async deletePost(@Param('id') id: string, @Request() req) {
+    const isCreator = req.user?.isCreator;
+    const post = await this.postService.deletePost(id, isCreator);
+    return post;
+  }
+
+  @ApiTags('Post')
+  @ApiBearerAuth('token')
+  @ApiOperation({
+    summary: 'Upload images to a post',
+    description: 'Allows a creator to upload up to 10 images for a post by ID.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Images uploaded successfully',
+  })
+  @ApiConsumes('multipart/form-data')
+  @Patch(':id/upload-images')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FilesInterceptor('images', 10, {
+      storage: diskStorage({
+        destination: './temp/uploads',
+        filename: (req, file, callback) => {
+          const filename = `${uuidv4()}-${file.originalname}`;
+          callback(null, filename);
+        },
+      }),
+      fileFilter: (req, file, callback) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
+          return callback(
+            new BadRequestException('Only image files are allowed!'),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async uploadImages(
+    @Param('id') id: string,
+    @UploadedFiles() files,
+    @Request() req,
   ) {
-    if (!query || query.trim() === '') {
-      throw new BadRequestException('Search query cannot be empty');
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files uploaded');
     }
 
-    return this.postService.searchPosts(query, page, limit);
+    if (files.length > 10) {
+      throw new BadRequestException('Maximum 10 images are allowed per post');
+    }
+
+    try {
+      const cloudinaryUrls = await Promise.all(
+        files.map((file) => this.cloudinaryService.uploadImage(file)),
+      );
+
+      const isCreator = req.user?.isCreator;
+      const updatedPost = await this.postService.updatePostImages(
+        id,
+        cloudinaryUrls,
+        isCreator,
+      );
+
+      if (!updatedPost) {
+        throw new InternalServerErrorException('Failed to upload images');
+      }
+
+      return {
+        message: 'Images uploaded successfully',
+        data: {
+          data: updatedPost,
+        },
+      };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Failed to upload images: ${error.message}`,
+      );
+    }
+  }
+
+  @ApiTags('Post')
+  @ApiBearerAuth('token')
+  @ApiOperation({
+    summary: 'Delete an image from a post',
+    description: 'Allows a creator to delete a specific image from their post',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Image deleted successfully',
+  })
+  @Delete(':id/images')
+  @UseGuards(JwtAuthGuard)
+  async deletePostImage(
+    @Param('id') id: string,
+    @Body('imageUrl') imageUrl: string,
+    @Request() req,
+  ) {
+    try {
+      const isCreator = req.user?.isCreator;
+      const updatedPost = await this.postService.deletePostImage(
+        id,
+        imageUrl,
+        isCreator,
+      );
+
+      return {
+        message: 'Image deleted successfully',
+        data: updatedPost,
+      };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Failed to delete image: ${error.message}`,
+      );
+    }
+  }
+
+  // Keep the original single image upload for backward compatibility
+  @ApiTags('Post')
+  @ApiBearerAuth('token')
+  @ApiOperation({
+    summary: 'Upload an image to a post',
+    description: 'Allows a creator to upload an image to a post by ID.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Image uploaded successfully',
+    type: CreatePostDto,
+  })
+  @Patch(':id/upload-image')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('image', {
+      storage: diskStorage({
+        destination: './temp/uploads',
+        filename: (req, file, callback) => {
+          const filename = `${uuidv4()}-${file.originalname}`;
+          callback(null, filename);
+        },
+      }),
+      fileFilter: (req, file, callback) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
+          return callback(
+            new BadRequestException('Only image files are allowed!'),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async uploadImage(
+    @Param('id') id: string,
+    @UploadedFile() file,
+    @Request() req,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    const cloudinaryUrl = await this.cloudinaryService.uploadImage(file);
+
+    const isCreator = req.user?.isCreator;
+
+    // Maintain backward compatibility but also add to images array
+    const updatedPost = await this.postService.updatePostImage(
+      id,
+      cloudinaryUrl,
+      isCreator,
+    );
+
+    if (!updatedPost) {
+      throw new InternalServerErrorException('Failed to upload image');
+    }
+
+    return {
+      message: 'Image uploaded successfully',
+      data: {
+        data: updatedPost,
+      },
+    };
+  }
+
+  // Đặt endpoint view post theo ID cuối cùng vì nó có thể xung đột với các route khác
+  @ApiTags('Post')
+  @ApiBearerAuth('')
+  @ApiOperation({
+    summary: 'View a post',
+    description: 'Fetches the details of a single post by its ID.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Post details',
+    type: CreatePostDto,
+  })
+  @Get(':postId')
+  async viewPost(@Param('postId') postId: string) {
+    return this.postService.getPostById(postId);
   }
 }
