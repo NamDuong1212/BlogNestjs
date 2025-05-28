@@ -30,7 +30,7 @@ class User {
   @Column({ default: false })
   isCreator: boolean;
 
-  @Column({ default: 'admin' })
+  @Column({ default: 'user' })
   role: string;
 
   @OneToMany(() => Post, (post) => post.user)
@@ -47,6 +47,12 @@ class User {
 
   @Column({ nullable: true, type: 'timestamp' })
   otpExpiry: Date;
+
+  @Column({ nullable: true })
+  resetPasswordToken: string;
+
+  @Column({ nullable: true })
+  resetPasswordExpiry: Date;
 
   @Column({ default: false })
   isActive: boolean;

@@ -16,10 +16,13 @@ import { Rating } from 'src/rating/rating.entity';
 import { Comment } from 'src/comment/comment.entity';
 import { Report } from 'src/report/report.entity';
 import { Wallet } from 'src/wallet/entity/wallet.entity';
+import { CreatorRequestModule } from 'src/creator-request/creator-request.module';
+import { NotificationModule } from 'src/notification/notification.module';
+import { CreatorRequest } from 'src/creator-request/creator-request.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Category, Post, DailyEarning, Rating, Comment, Report, Wallet]),
+    TypeOrmModule.forFeature([User, Category, Post, DailyEarning, Rating, Comment, Report, Wallet, CreatorRequest]),
     ConfigModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
@@ -35,6 +38,8 @@ import { Wallet } from 'src/wallet/entity/wallet.entity';
       },
     }),
     AuthModule,
+    CreatorRequestModule,
+    NotificationModule,
   ],
   controllers: [CmsController],
   providers: [

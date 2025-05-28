@@ -25,6 +25,8 @@ import { CreateCategoryDto } from 'src/category/dto/create-category.dto';
 import { JwtService } from '@nestjs/jwt';
 import { UpdateCategoryDto } from 'src/category/dto/update-category.dto';
 import { CreatePostDto } from 'src/post/dto/create-post.dto';
+import { UpdateCreatorStatusDto } from 'src/user/dto/update-creator-status.dto';
+import { ReviewCreatorRequestDto } from 'src/creator-request/dto/review-creator-request.dto';
 
 @Controller('cms')
 export class CmsController {
@@ -174,6 +176,40 @@ export class CmsController {
   @ApiTags('Cms')
   @ApiBearerAuth('admin')
   @ApiOperation({
+    summary: 'Get All Users',
+    description: 'Returns all users with their basic information and statistics.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'All users returned successfully.',
+  })
+  @Get('/user/get-all')
+  @UseGuards(JwtAuthGuard, RoleGuard)
+  async getAllUsers() {
+    const users = await this.cmsService.getAllUsers();
+    return { message: 'All users retrieved successfully', data: users };
+  }
+
+  @ApiTags('Cms')
+  @ApiBearerAuth('admin')
+  @ApiOperation({
+    summary: 'Get User By Id',
+    description: 'Returns detailed information about a specific user.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User details returned successfully.',
+  })
+  @Get('/user/:id')
+  @UseGuards(JwtAuthGuard, RoleGuard)
+  async getUserById(@Param('id') id: string) {
+    const user = await this.cmsService.getUserById(id);
+    return { message: 'User details retrieved successfully', data: user };
+  }
+
+  @ApiTags('Cms')
+  @ApiBearerAuth('admin')
+  @ApiOperation({
     summary: 'Calculate Daily Earnings',
     description: 'Manually calculates daily earnings.',
   })
@@ -296,4 +332,81 @@ export class CmsController {
   async getListOfViews() {
     return this.cmsService.getListOfViews();
   }
+  // Add these methods to your existing CmsController class
+
+@ApiTags('Cms')
+@ApiBearerAuth('admin')
+@ApiOperation({
+  summary: 'Get all creator requests',
+  description: 'Returns all creator requests for admin review',
+})
+@ApiResponse({
+  status: 200,
+  description: 'Creator requests retrieved successfully',
+})
+@Get('/creator-requests')
+@UseGuards(JwtAuthGuard, RoleGuard)
+async getAllCreatorRequests() {
+  const requests = await this.cmsService.getAllCreatorRequests();
+  return {
+    message: 'Creator requests retrieved successfully',
+    data: requests,
+  };
+}
+
+@ApiTags('Cms')
+@ApiBearerAuth('admin')
+@ApiOperation({
+  summary: 'Review creator request',
+  description: 'Approve or reject a creator request',
+})
+@ApiResponse({
+  status: 200,
+  description: 'Creator request reviewed successfully',
+})
+@Patch('/creator-requests/:id/review')
+@UseGuards(JwtAuthGuard, RoleGuard)
+async reviewCreatorRequest(
+  @Param('id') id: string,
+  @Body() reviewDto: ReviewCreatorRequestDto,
+  @Request() req,
+) {
+  const request = await this.cmsService.reviewCreatorRequest(
+    id,
+    reviewDto,
+    req.user.id,
+  );
+  return {
+    message: 'Creator request reviewed successfully',
+    data: request,
+  };
+}
+
+@ApiTags('Cms')
+@ApiBearerAuth('admin')
+@ApiOperation({
+  summary: 'Update user creator status',
+  description: 'Enable or disable creator status for a user',
+})
+@ApiResponse({
+  status: 200,
+  description: 'Creator status updated successfully',
+})
+@Patch('/user/:id/creator-status')
+@UseGuards(JwtAuthGuard, RoleGuard)
+async updateCreatorStatus(
+  @Param('id') id: string,
+  @Body() updateDto: UpdateCreatorStatusDto,
+  @Request() req,
+) {
+  const result = await this.cmsService.updateUserCreatorStatus(
+    id,
+    updateDto,
+    req.user.id,
+  );
+  return {
+    message: 'Creator status updated successfully',
+    data: result,
+  };
+}
 }

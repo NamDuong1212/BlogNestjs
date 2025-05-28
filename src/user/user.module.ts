@@ -4,10 +4,14 @@ import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import User from './user.entity';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User]),
-    CloudinaryModule],
+  imports: [
+    TypeOrmModule.forFeature([User]),
+    CloudinaryModule,
+    NotificationModule,
+  ],
   controllers: [UserController],
   providers: [UserService],
 })

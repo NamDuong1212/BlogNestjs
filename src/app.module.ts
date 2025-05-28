@@ -16,7 +16,8 @@ import { CmsModule } from './cms/cms.module';
 import { ReportModule } from './report/report.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { ItineraryModule } from './itinerary/itinerary.module';
-
+import { CreatorRequestModule } from './creator-request/creator-request.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -45,6 +46,8 @@ import { ItineraryModule } from './itinerary/itinerary.module';
     ReportModule,
     CloudinaryModule,
     ItineraryModule,
+    CreatorRequestModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
