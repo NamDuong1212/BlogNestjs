@@ -38,4 +38,8 @@ export class Notification {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @Column({ type: 'json', nullable: true })
+  metadata?: Record<string, any>;
+
 }

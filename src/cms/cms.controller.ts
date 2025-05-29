@@ -27,7 +27,7 @@ import { UpdateCategoryDto } from 'src/category/dto/update-category.dto';
 import { CreatePostDto } from 'src/post/dto/create-post.dto';
 import { UpdateCreatorStatusDto } from 'src/user/dto/update-creator-status.dto';
 import { ReviewCreatorRequestDto } from 'src/creator-request/dto/review-creator-request.dto';
-
+import { DeletePostDto } from './dto/delete-post.dto';
 @Controller('cms')
 export class CmsController {
   constructor(
@@ -177,7 +177,8 @@ export class CmsController {
   @ApiBearerAuth('admin')
   @ApiOperation({
     summary: 'Get All Users',
-    description: 'Returns all users with their basic information and statistics.',
+    description:
+      'Returns all users with their basic information and statistics.',
   })
   @ApiResponse({
     status: 200,
@@ -243,20 +244,22 @@ export class CmsController {
   @ApiBearerAuth('admin')
   @ApiOperation({
     summary: 'Delete a post',
-    description: 'Allows a creator to delete a post by ID.',
+    description: 'Allows admin to delete a post by ID with reason.',
   })
   @ApiResponse({
     status: 200,
     description: 'The post was deleted successfully',
-    type: CreatePostDto,
   })
   @Delete('/post/:id')
   @UseGuards(JwtAuthGuard, RoleGuard)
-  async deletePost(@Param('id') id: string) {
-    const post = await this.cmsService.deletePost(id);
+  async deletePost(
+    @Param('id') id: string,
+    @Body() deletePostDto: DeletePostDto,
+  ) {
+    const { reason } = deletePostDto;
+    const post = await this.cmsService.deletePost(id, reason);
     return post;
   }
-
   @ApiTags('Cms')
   @ApiBearerAuth('admin')
   @ApiOperation({
@@ -334,79 +337,79 @@ export class CmsController {
   }
   // Add these methods to your existing CmsController class
 
-@ApiTags('Cms')
-@ApiBearerAuth('admin')
-@ApiOperation({
-  summary: 'Get all creator requests',
-  description: 'Returns all creator requests for admin review',
-})
-@ApiResponse({
-  status: 200,
-  description: 'Creator requests retrieved successfully',
-})
-@Get('/creator-requests')
-@UseGuards(JwtAuthGuard, RoleGuard)
-async getAllCreatorRequests() {
-  const requests = await this.cmsService.getAllCreatorRequests();
-  return {
-    message: 'Creator requests retrieved successfully',
-    data: requests,
-  };
-}
+  @ApiTags('Cms')
+  @ApiBearerAuth('admin')
+  @ApiOperation({
+    summary: 'Get all creator requests',
+    description: 'Returns all creator requests for admin review',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Creator requests retrieved successfully',
+  })
+  @Get('/creator-requests')
+  @UseGuards(JwtAuthGuard, RoleGuard)
+  async getAllCreatorRequests() {
+    const requests = await this.cmsService.getAllCreatorRequests();
+    return {
+      message: 'Creator requests retrieved successfully',
+      data: requests,
+    };
+  }
 
-@ApiTags('Cms')
-@ApiBearerAuth('admin')
-@ApiOperation({
-  summary: 'Review creator request',
-  description: 'Approve or reject a creator request',
-})
-@ApiResponse({
-  status: 200,
-  description: 'Creator request reviewed successfully',
-})
-@Patch('/creator-requests/:id/review')
-@UseGuards(JwtAuthGuard, RoleGuard)
-async reviewCreatorRequest(
-  @Param('id') id: string,
-  @Body() reviewDto: ReviewCreatorRequestDto,
-  @Request() req,
-) {
-  const request = await this.cmsService.reviewCreatorRequest(
-    id,
-    reviewDto,
-    req.user.id,
-  );
-  return {
-    message: 'Creator request reviewed successfully',
-    data: request,
-  };
-}
+  @ApiTags('Cms')
+  @ApiBearerAuth('admin')
+  @ApiOperation({
+    summary: 'Review creator request',
+    description: 'Approve or reject a creator request',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Creator request reviewed successfully',
+  })
+  @Patch('/creator-requests/:id/review')
+  @UseGuards(JwtAuthGuard, RoleGuard)
+  async reviewCreatorRequest(
+    @Param('id') id: string,
+    @Body() reviewDto: ReviewCreatorRequestDto,
+    @Request() req,
+  ) {
+    const request = await this.cmsService.reviewCreatorRequest(
+      id,
+      reviewDto,
+      req.user.id,
+    );
+    return {
+      message: 'Creator request reviewed successfully',
+      data: request,
+    };
+  }
 
-@ApiTags('Cms')
-@ApiBearerAuth('admin')
-@ApiOperation({
-  summary: 'Update user creator status',
-  description: 'Enable or disable creator status for a user',
-})
-@ApiResponse({
-  status: 200,
-  description: 'Creator status updated successfully',
-})
-@Patch('/user/:id/creator-status')
-@UseGuards(JwtAuthGuard, RoleGuard)
-async updateCreatorStatus(
-  @Param('id') id: string,
-  @Body() updateDto: UpdateCreatorStatusDto,
-  @Request() req,
-) {
-  const result = await this.cmsService.updateUserCreatorStatus(
-    id,
-    updateDto,
-    req.user.id,
-  );
-  return {
-    message: 'Creator status updated successfully',
-    data: result,
-  };
-}
+  @ApiTags('Cms')
+  @ApiBearerAuth('admin')
+  @ApiOperation({
+    summary: 'Update user creator status',
+    description: 'Enable or disable creator status for a user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Creator status updated successfully',
+  })
+  @Patch('/user/:id/creator-status')
+  @UseGuards(JwtAuthGuard, RoleGuard)
+  async updateCreatorStatus(
+    @Param('id') id: string,
+    @Body() updateDto: UpdateCreatorStatusDto,
+    @Request() req,
+  ) {
+    const result = await this.cmsService.updateUserCreatorStatus(
+      id,
+      updateDto,
+      req.user.id,
+    );
+    return {
+      message: 'Creator status updated successfully',
+      data: result,
+    };
+  }
 }

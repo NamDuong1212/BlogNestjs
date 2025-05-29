@@ -298,7 +298,6 @@ export class CmsService {
     return this.categoryRepository.save(category);
   }
 
-  // Rest of the methods remain unchanged
   private async isChildOfCategory(
     potentialChildId: string,
     parentId: string,
@@ -429,7 +428,6 @@ export class CmsService {
         isCreator: true,
         role: true,
         isActive: true,
-        // Exclude sensitive fields like password, otp, resetPasswordToken
       },
     });
 
@@ -486,16 +484,29 @@ export class CmsService {
     return { message: 'User deleted successfully' };
   }
 
-  async deletePost(id: string): Promise<{ message: string }> {
-    const post = await this.postRepository.findOne({ where: { id } });
+  async deletePost(id: string, reason: string): Promise<{ message: string }> {
+    const post = await this.postRepository.findOne({
+      where: { id },
+      relations: ['user'],
+    });
 
     if (!post) {
       throw new NotFoundException('Post not found');
     }
 
+    const userId = post.user.id;
+    const postTitle = post.title;
+
     await this.commentRepository.delete({ post: { id: post.id } });
     await this.ratingRepository.delete({ post: { id: post.id } });
+
     await this.postRepository.remove(post);
+
+    await this.notificationService.createPostDeletedNotification(
+      userId,
+      postTitle,
+      reason,
+    );
 
     return { message: 'Post deleted successfully' };
   }
@@ -537,6 +548,7 @@ export class CmsService {
   async notifyPostDeletion(
     userId: string,
     title: string,
+    reason?: string,
   ): Promise<{ message: string }> {
     const creator = await this.userRepository.findOne({
       where: { id: userId },
@@ -546,10 +558,17 @@ export class CmsService {
       throw new UnauthorizedException('User is not a creator');
     }
 
-    // Create notification instead of console.log
-    await this.notificationService.createPostDeletedNotification(userId, title);
+    await this.notificationService.createPostDeletedNotification(
+      userId,
+      title,
+      reason,
+    );
 
-    return { message: `Notification sent to creator: ${creator.username}` };
+    const responseMessage = reason
+      ? `Notification sent to creator: ${creator.username} with reason: ${reason}`
+      : `Notification sent to creator: ${creator.username}`;
+
+    return { message: responseMessage };
   }
 
   async getListOfViews(): Promise<

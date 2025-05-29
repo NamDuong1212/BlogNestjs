@@ -14,45 +14,68 @@ export class NotificationService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  async createCreatorApprovedNotification(userId: string, message: string): Promise<Notification> {
+  async createCreatorApprovedNotification(
+    userId: string,
+    message: string,
+  ): Promise<Notification> {
     const notification = this.notificationRepository.create({
       type: NotificationType.CREATOR_REQUEST_APPROVED,
       title: 'Creator Request Approved',
       message,
-      userId
+      userId,
     });
 
     return await this.notificationRepository.save(notification);
   }
 
-  async createCreatorRejectedNotification(userId: string, message: string): Promise<Notification> {
+  async createCreatorRejectedNotification(
+    userId: string,
+    message: string,
+  ): Promise<Notification> {
     const notification = this.notificationRepository.create({
       type: NotificationType.CREATOR_REQUEST_REJECTED,
       title: 'Creator Request Rejected',
       message,
-      userId
+      userId,
     });
 
     return await this.notificationRepository.save(notification);
   }
 
-  async createCreatorStatusRevokedNotification(userId: string, reason: string): Promise<Notification> {
+  async createCreatorStatusRevokedNotification(
+    userId: string,
+    reason: string,
+  ): Promise<Notification> {
     const notification = this.notificationRepository.create({
       type: NotificationType.CREATOR_STATUS_REVOKED,
       title: 'Creator Status Revoked',
       message: `Your creator privileges have been revoked. Reason: ${reason}`,
-      userId
+      userId,
     });
 
     return await this.notificationRepository.save(notification);
   }
 
-  async createPostDeletedNotification(userId: string, postTitle: string): Promise<Notification> {
+  async createPostDeletedNotification(
+    userId: string,
+    postTitle: string,
+    reason?: string,
+  ): Promise<Notification> {
+    const baseMessage = `Your post "${postTitle}" has been deleted by an administrator.`;
+    const messageWithReason = reason
+      ? `${baseMessage}\n\nReason: ${reason}`
+      : baseMessage;
+
     const notification = this.notificationRepository.create({
       type: NotificationType.POST_DELETED,
       title: 'Post Deleted',
-      message: `Your post "${postTitle}" has been deleted by an administrator.`,
-      userId
+      message: messageWithReason,
+      userId,
+      metadata: {
+        postTitle,
+        deletionReason: reason,
+        deletedAt: new Date().toISOString(),
+      },
     });
 
     return await this.notificationRepository.save(notification);
@@ -61,13 +84,13 @@ export class NotificationService {
   async getUserNotifications(userId: string): Promise<Notification[]> {
     return await this.notificationRepository.find({
       where: { userId },
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
     });
   }
 
   async markAsRead(id: string, userId: string): Promise<Notification> {
     const notification = await this.notificationRepository.findOne({
-      where: { id, userId }
+      where: { id, userId },
     });
 
     if (!notification) {
@@ -81,7 +104,7 @@ export class NotificationService {
   async markAllAsRead(userId: string): Promise<void> {
     await this.notificationRepository.update(
       { userId, isRead: false },
-      { isRead: true }
+      { isRead: true },
     );
   }
 }
