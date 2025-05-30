@@ -1,6 +1,6 @@
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 
-@Entity('wallet') 
+@Entity('wallet')
 export class Wallet {
     @PrimaryGeneratedColumn()
     id: string;
@@ -10,4 +10,10 @@ export class Wallet {
 
     @Column({ default: 0 })
     balance: number;
+
+    @Column({ nullable: true })
+    paypalEmail: string;
+
+    @Column({ default: false })
+    paypalVerified: boolean;
 }

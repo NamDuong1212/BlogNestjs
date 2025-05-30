@@ -6,10 +6,11 @@ import { WalletService } from './wallet.service';
 import { Post } from 'src/post/post.entity';
 import { DailyEarning } from './entity/daily-earning.entity';
 import { Withdrawal } from './entity/withdrawals.entity';
+import { PayPalService } from './services/paypal.service';
 
 @Module({
     imports: [TypeOrmModule.forFeature([Wallet, Post, DailyEarning, Withdrawal])],
-    controllers: [WalletController], 
-    providers: [WalletService],
+    controllers: [WalletController],
+    providers: [WalletService, PayPalService],
 })
 export class WalletModule {}
